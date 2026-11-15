@@ -51,10 +51,78 @@ return {ready:false,missing:[
 function makeStudyExport(play, settings, imageName=null, librarySelection=null){
 return {schemaVersion:'0.3',informationCutoff:CUTOFF_DATE,title:'Second Call · Michigan evidence study',exportedAt:new Date().toISOString(),status:'evidence-prototype-no-forecast',target:TARGET,selectedObservedEvent:play,librarySelection,sources:{[play.source]:SOURCES[play.source],oregon:SOURCES.oregon,staff:SOURCES.staff},settings,referenceImage:{name:imageName,uploadedToServer:false,positionsExtracted:false},forecast:{available:false,reason:forecastEligibility(play).missing,expectedYards:null,probabilityGain:null,probabilityFirstDown:null},limitations:['Statistical events are not complete play calls.','No player tracks or blocking assignments have been reconstructed.','Historical yards and conversion counts are not counterfactual predictions.','Source clock entries may differ from drive-end clocks; verify against film.']};
 }
+const STAFF_CHANGE_DATE = '2026-11-08';
+function success(p){
+if(p.touchdown)return true;
+if(p.interception||p.fumbleLost)return false;
+const y=p.yards??0;
+if(p.down===1)return y>=0.4*p.distance;
+if(p.down===2)return y>=0.6*p.distance;
+return !!p.firstDown;
+}
+function family(p){
+if(p.kind==='run')return p.direction?`Run ${p.direction.toLowerCase()}`:'Run (no direction)';
+if(p.kind==='pass'){
+if(!p.passDepth&&!p.direction)return 'Pass (area not printed)';
+return `Pass ${[p.passDepth,p.direction?.toLowerCase()].filter(Boolean).join(' ')}`;
+}
+if(p.kind==='sack')return 'Sack (dropback)';
+return null;
+}
+const DOWNS={any:'Any down','1':'1st','2':'2nd','3':'3rd','4':'4th','34':'3rd or 4th'};
+const DISTANCES={any:'Any distance','1-2':'1-2 yds','3-5':'3-5 yds','6-10':'6-10 yds','11+':'11+ yds'};
+const ZONES={any:'Anywhere',own:'Own side',mid:'Opp 49 to 21',red:'Red zone (20 in)'};
+const ERAS={all:'All of 2026',before:'Before Nov 8 change',after:'After Nov 8 change'};
+function inDistance(d,key){
+if(key==='any')return true;
+if(key==='11+')return d>=11;
+const [a,b]=key.split('-').map(Number);return d>=a&&d<=b;
+}
+function inZone(ytg,key){
+return key==='any'||(key==='own'&&ytg>50)||(key==='mid'&&ytg<=50&&ytg>20)||(key==='red'&&ytg<=20);
+}
+function situationSnaps(f,plays=PLAYS){
+return plays.filter(p=>{
+if(p.nullified||p.conversionAttempt||!p.down)return false;
+if(!['run','pass','sack'].includes(p.kind))return false;
+if(f.cutoff&&!p.eligible)return false;
+if(f.down==='34'?!(p.down>=3):f.down!=='any'&&String(p.down)!==f.down)return false;
+if(!inDistance(p.distance,f.distance))return false;
+if(!inZone(p.yardsToGoal,f.zone))return false;
+if(f.era==='before'&&p.date>=STAFF_CHANGE_DATE)return false;
+if(f.era==='after'&&p.date<STAFF_CHANGE_DATE)return false;
+return true;
+});
+}
+function wilson(k,n,z=1.645){
+if(!n)return [0,0];
+const ph=k/n,den=1+z*z/n,c=(ph+z*z/(2*n))/den,h=z*Math.sqrt(ph*(1-ph)/n+z*z/(4*n*n))/den;
+return [Math.max(0,c-h),Math.min(1,c+h)];
+}
+function stats(list){
+const k=list.filter(success).length,n=list.length,[lo,hi]=wilson(k,n);
+const yards=list.reduce((a,p)=>a+(p.yards??0),0);
+return {n,successes:k,rate:n?k/n:0,lo,hi,avgYards:n?yards/n:0,turnovers:list.filter(p=>p.interception||p.fumbleLost).length};
+}
+const MIN_SAMPLE=8;
+function analyze(f,plays=PLAYS){
+const snaps=situationSnaps(f,plays);
+const groups=new Map();
+for(const p of snaps){const k=family(p);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p);}
+const rows=[...groups].map(([name,list])=>({family:name,share:list.length/(snaps.length||1),...stats(list),small:list.length<MIN_SAMPLE,ids:list.map(p=>p.id)}));
+rows.sort((a,b)=>(a.small-b.small)||b.lo-a.lo||b.n-a.n);
+const runs=snaps.filter(p=>p.kind==='run'),drops=snaps.filter(p=>p.kind!=='run');
+return {snaps:snaps.length,overall:stats(snaps),run:stats(runs),dropback:stats(drops),rows};
+}
+function eraComparison(f,plays=PLAYS){
+return ['before','after'].map(era=>{const a=analyze({...f,era,cutoff:false},plays);return {era,label:ERAS[era],...a,runShare:a.snaps?a.run.n/a.snaps:0};});
+}
 const $=id=>document.getElementById(id);
 const PAGE=24;
 let selected=PLAYS.find(p=>p.id===DEFAULT_PLAY_ID),defenseMode='fixed',imageUrl=null,imageName=null;
-const lib={kind:'all',game:'all',down:'all',situation:true,cutoff:true,query:'',limit:PAGE};
+const lib={kind:'all',game:'all',down:'all',situation:true,cutoff:true,query:'',limit:PAGE,ids:null,idsLabel:''};
+const TARGET_SITUATION={down:'34',distance:'3-5',zone:'any',era:'all',cutoff:true};
+const ana={...TARGET_SITUATION};
 const NUM=new Map(PLAYS.map((p,i)=>[p.id,i+1]));
 function gameLabel(p){const g=GAMES[p.source];if(!g)return p.source.toUpperCase();const d=new Date(g.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}).toUpperCase();return `${g.michiganHome?'VS':'AT'} ${g.opponent.toUpperCase()} · ${d}`;}
 function quarterText(q){return q>4?(q===5?'OT':'OT'+(q-4)):'Q'+q;}
@@ -85,6 +153,7 @@ svg+=`<line x1="37" x2="863" y1="${sy(0)}" y2="${sy(0)}" stroke="#729fc8" stroke
 $('grid').innerHTML=svg;
 }
 function matches(p){
+if(lib.ids)return lib.ids.has(p.id);
 if(lib.kind!=='all'&&!(lib.kind==='pass'?p.kind==='pass'||p.kind==='sack':p.kind===lib.kind))return false;
 if(lib.cutoff&&!p.eligible)return false;
 if(lib.game!=='all'&&p.source!==lib.game)return false;
@@ -100,6 +169,7 @@ $('librarySummary').innerHTML=`<div><strong>${list.length}</strong><small>snaps 
 }
 function renderCards(){
 const list=PLAYS.filter(matches);
+$('idFilterNote').hidden=!lib.ids;if(lib.ids)$('idFilterText').textContent=lib.idsLabel;
 renderSummary(list);
 const shown=list.slice(0,lib.limit);
 $('playCards').innerHTML=shown.length?shown.map(p=>`<button class="play-card ${p.id===selected.id?'selected':''}" data-play="${p.id}" aria-pressed="${p.id===selected.id}"><span class="card-number">${NUM.get(p.id)}</span><span class="card-type ${cardKind(p.kind)}">${kindLabel(p.kind)} · MICHIGAN</span><strong class="card-title">${safe(p.shortTitle)}</strong><span class="card-formation">${safe((p.alignmentFamily??'ALIGNMENT NOT PRINTED').toUpperCase())}${p.noHuddle?' · NO HUDDLE':''} · FULL CALL UNVERIFIED</span><span class="card-event-detail">${gameLabel(p)}<br>${quarterText(p.quarter)} ${p.clock??''} · ${situationText(p)} · ${safe(p.spot)}<br>${yardText(p.yards)} yd observed${p.firstDown||p.touchdown?' · <b class="conv">'+(p.touchdown?'TD':'1ST')+'</b>':''}${p.interception?' · <b class="neg">INT</b>':''}${p.fumbleLost?' · <b class="neg">FUM LOST</b>':''}${p.nullified?' · <b class="neg">NO PLAY</b>':''}${p.live?' · <b class="live">LIVE</b>':!p.eligible?' · <b class="neg">AFTER CUTOFF</b>':''}</span><span class="card-bottom"><span>${p.id===selected.id?'● Reviewing source':'View event record'}</span><b>FILM PENDING</b></span></button>`).join(''):'<p class="empty-library">No snaps match these filters.</p>';
@@ -160,5 +230,22 @@ $('exportBtn').addEventListener('click',()=>{
 const shown=PLAYS.filter(matches);const study=makeStudyExport(selected,{defenseMode,coverageAssumption:$('coverage').value},imageName,{filters:{kind:lib.kind,game:lib.game,down:lib.down,likeTarget:lib.situation,query:lib.query},matchingIds:shown.map(p=>p.id),observedSummary:summarize(shown)});
 const blob=new Blob([JSON.stringify(study,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Second_Call_Michigan_Study.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Study exported with sources and unverified fields preserved.');
 });
+function pctTxt(x){return Math.round(100*x)+'%';}
+function renderAnalysis(){
+const a=analyze(ana);
+const s=a.overall;
+$('aSummary').innerHTML=a.snaps?`<div><strong>${a.snaps}</strong><small>called plays in this situation</small></div><div><strong>${pctTxt(s.rate)}</strong><small>success · ${s.successes}/${s.n}</small></div><div><strong>${a.run.n?pctTxt(a.run.rate):'—'}</strong><small>runs · ${a.run.successes}/${a.run.n}</small></div><div><strong>${a.dropback.n?pctTxt(a.dropback.rate):'—'}</strong><small>dropbacks (incl. sacks) · ${a.dropback.successes}/${a.dropback.n}</small></div><p>${ana.cutoff?'Games before Oregon only (the study cutoff).':'<b class="neg">Includes games after the Oregon cutoff.</b>'} ${ERAS[ana.era]}.</p>`:'<p>No called plays match this situation.</p>';
+$('aRows').innerHTML=a.rows.map((r,i)=>`<tr class="${r.small?'small':''}"><td><b>${i+1}.</b> ${safe(r.family)}${r.small?' <span class="tag">small sample</span>':''}</td><td>${r.n} <small>(${pctTxt(r.share)})</small></td><td><span class="rate">${pctTxt(r.rate)}</span> <small>${pctTxt(r.lo)}-${pctTxt(r.hi)}</small><span class="bar" aria-hidden="true"><i style="left:${100*r.lo}%;width:${100*(r.hi-r.lo)}%"></i><b style="left:${100*r.rate}%"></b></span></td><td>${r.avgYards.toFixed(1)}</td><td>${r.turnovers||''}</td><td><button class="text-button" data-fam="${i}">View ${r.n} ↓</button></td></tr>`).join('');
+for(const b of $('aRows').querySelectorAll('[data-fam]'))b.addEventListener('click',()=>{const r=a.rows[+b.dataset.fam];lib.ids=new Set(r.ids);lib.idsLabel=`${r.n} snaps: ${r.family}, ${DOWNS[ana.down]}, ${DISTANCES[ana.distance]}, ${ZONES[ana.zone]}`;lib.limit=PAGE;renderCards();document.querySelector('.playbook-section').scrollIntoView({behavior:'smooth'});});
+const eras=eraComparison(ana);
+$('aEras').innerHTML=`<div class="era-head">Same situation, before and after the November 8 staff change <small>(all games, cutoff ignored)</small></div>`+eras.map(e=>`<div class="era"><span>${e.label}</span><strong>${e.snaps?pctTxt(e.overall.rate):'—'}</strong><small>success · ${e.snaps} plays${e.snaps&&e.snaps<20?' · small sample':''}</small><small>${e.snaps?pctTxt(e.runShare)+' runs':''}</small></div>`).join('');
+}
+function fillSelect(id,opts,val){$(id).innerHTML=Object.entries(opts).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');$(id).value=val;}
+function setAnalysis(f){Object.assign(ana,f);fillSelect('aDown',DOWNS,ana.down);fillSelect('aDistance',DISTANCES,ana.distance);fillSelect('aZone',ZONES,ana.zone);fillSelect('aEra',ERAS,ana.era);$('aCutoff').checked=ana.cutoff;renderAnalysis();}
+for(const [id,key] of [['aDown','down'],['aDistance','distance'],['aZone','zone'],['aEra','era']])$(id).addEventListener('change',e=>{ana[key]=e.target.value;renderAnalysis();});
+$('aCutoff').addEventListener('change',e=>{ana.cutoff=e.target.checked;renderAnalysis();});
+$('aTarget').addEventListener('click',()=>setAnalysis({...TARGET_SITUATION}));
+$('clearIds').addEventListener('click',()=>{lib.ids=null;lib.limit=PAGE;renderCards();});
+setAnalysis({});
 renderGrid();render();
 })();
