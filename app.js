@@ -120,9 +120,13 @@ return ['before','after'].map(era=>{const a=analyze({...f,era,cutoff:false},play
 const $=id=>document.getElementById(id);
 const PAGE=24;
 let selected=PLAYS.find(p=>p.id===DEFAULT_PLAY_ID),defenseMode='fixed',imageUrl=null,imageName=null;
-const lib={kind:'all',game:'all',down:'all',situation:true,cutoff:true,query:'',limit:PAGE,ids:null,idsLabel:''};
+const lib={kind:'all',game:'all',down:'all',situation:false,cutoff:false,query:'',limit:PAGE,ids:null,idsLabel:''};
 const TARGET_SITUATION={down:'34',distance:'3-5',zone:'any',era:'all',cutoff:true};
-const ana={...TARGET_SITUATION};
+const SEASON_VIEW={down:'any',distance:'any',zone:'any',era:'all',cutoff:false};
+const ana={...SEASON_VIEW};
+const GAME_ORDER=Object.entries(GAMES).sort((a,b)=>b[1].date.localeCompare(a[1].date)).map(([k])=>k);
+const NEWEST=[...PLAYS].sort((a,b)=>GAME_ORDER.indexOf(a.source)-GAME_ORDER.indexOf(b.source));
+const LATEST=LIVE_GAME?.source??GAME_ORDER[0];
 const NUM=new Map(PLAYS.map((p,i)=>[p.id,i+1]));
 function gameLabel(p){const g=GAMES[p.source];if(!g)return p.source.toUpperCase();const d=new Date(g.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}).toUpperCase();return `${g.michiganHome?'VS':'AT'} ${g.opponent.toUpperCase()} · ${d}`;}
 function quarterText(q){return q>4?(q===5?'OT':'OT'+(q-4)):'Q'+q;}
@@ -165,14 +169,14 @@ return true;
 function pct(a,b){return b?Math.round(100*a/b)+'%':'—';}
 function renderSummary(list){
 const s=summarize(list);
-$('librarySummary').innerHTML=`<div><strong>${list.length}</strong><small>snaps shown of ${lib.cutoff?ELIGIBLE.length+' before the cutoff':PLAYS.length+' this season'}</small></div><div><strong>${s.run.converted}/${s.run.n}</strong><small>runs converted · ${pct(s.run.converted,s.run.n)}</small></div><div><strong>${s.pass.converted}/${s.pass.n}</strong><small>dropbacks converted · ${pct(s.pass.converted,s.pass.n)}</small></div><div><strong>${s.turnovers}</strong><small>turnovers</small></div><p>Observed history in the source games: first down or touchdown on the snap. Dropbacks include sacks. Not a forecast against Oregon.${lib.cutoff?'':' <b class="neg">Cutoff off: includes games after the target, which a fair study cannot use.</b>'}</p>`;
+$('librarySummary').innerHTML=`<div><strong>${list.length}</strong><small>snaps shown of ${lib.cutoff?ELIGIBLE.length+' before the cutoff':PLAYS.length+' this season'}</small></div><div><strong>${s.run.converted}/${s.run.n}</strong><small>runs converted · ${pct(s.run.converted,s.run.n)}</small></div><div><strong>${s.pass.converted}/${s.pass.n}</strong><small>dropbacks converted · ${pct(s.pass.converted,s.pass.n)}</small></div><div><strong>${s.turnovers}</strong><small>turnovers</small></div><p>Observed history in the source games: first down or touchdown on the snap. Dropbacks include sacks. Not a forecast.${lib.cutoff?' Oregon case-study view: games before Oregon only.':' Whole season; for the Oregon case study, tick "Before the Oregon game only".'}</p>`;
 }
 function renderCards(){
-const list=PLAYS.filter(matches);
+const list=NEWEST.filter(matches);
 $('idFilterNote').hidden=!lib.ids;if(lib.ids)$('idFilterText').textContent=lib.idsLabel;
 renderSummary(list);
 const shown=list.slice(0,lib.limit);
-$('playCards').innerHTML=shown.length?shown.map(p=>`<button class="play-card ${p.id===selected.id?'selected':''}" data-play="${p.id}" aria-pressed="${p.id===selected.id}"><span class="card-number">${NUM.get(p.id)}</span><span class="card-type ${cardKind(p.kind)}">${kindLabel(p.kind)} · MICHIGAN</span><strong class="card-title">${safe(p.shortTitle)}</strong><span class="card-formation">${safe((p.alignmentFamily??'ALIGNMENT NOT PRINTED').toUpperCase())}${p.noHuddle?' · NO HUDDLE':''} · FULL CALL UNVERIFIED</span><span class="card-event-detail">${gameLabel(p)}<br>${quarterText(p.quarter)} ${p.clock??''} · ${situationText(p)} · ${safe(p.spot)}<br>${yardText(p.yards)} yd observed${p.firstDown||p.touchdown?' · <b class="conv">'+(p.touchdown?'TD':'1ST')+'</b>':''}${p.interception?' · <b class="neg">INT</b>':''}${p.fumbleLost?' · <b class="neg">FUM LOST</b>':''}${p.nullified?' · <b class="neg">NO PLAY</b>':''}${p.live?' · <b class="live">LIVE</b>':!p.eligible?' · <b class="neg">AFTER CUTOFF</b>':''}</span><span class="card-bottom"><span>${p.id===selected.id?'● Reviewing source':'View event record'}</span><b>FILM PENDING</b></span></button>`).join(''):'<p class="empty-library">No snaps match these filters.</p>';
+$('playCards').innerHTML=shown.length?shown.map(p=>`<button class="play-card ${p.id===selected.id?'selected':''}" data-play="${p.id}" aria-pressed="${p.id===selected.id}"><span class="card-number">${NUM.get(p.id)}</span><span class="card-type ${cardKind(p.kind)}">${kindLabel(p.kind)} · MICHIGAN</span><strong class="card-title">${safe(p.shortTitle)}</strong><span class="card-formation">${safe((p.alignmentFamily??'ALIGNMENT NOT PRINTED').toUpperCase())}${p.noHuddle?' · NO HUDDLE':''} · FULL CALL UNVERIFIED</span><span class="card-event-detail">${gameLabel(p)}<br>${quarterText(p.quarter)} ${p.clock??''} · ${situationText(p)} · ${safe(p.spot)}<br>${yardText(p.yards)} yd observed${p.firstDown||p.touchdown?' · <b class="conv">'+(p.touchdown?'TD':'1ST')+'</b>':''}${p.interception?' · <b class="neg">INT</b>':''}${p.fumbleLost?' · <b class="neg">FUM LOST</b>':''}${p.nullified?' · <b class="neg">NO PLAY</b>':''}${p.live?' · <b class="live">LIVE</b>':''}</span><span class="card-bottom"><span>${p.id===selected.id?'● Reviewing source':'View event record'}</span><b>FILM PENDING</b></span></button>`).join(''):'<p class="empty-library">No snaps match these filters.</p>';
 $('moreBtn').hidden=list.length<=lib.limit;
 $('moreBtn').textContent=`Show ${Math.min(PAGE,list.length-lib.limit)} more · ${list.length-lib.limit} hidden`;
 for(const b of $('playCards').querySelectorAll('button'))b.addEventListener('click',()=>{selected=PLAYS.find(p=>p.id===b.dataset.play);render();});
@@ -231,10 +235,31 @@ const shown=PLAYS.filter(matches);const study=makeStudyExport(selected,{defenseM
 const blob=new Blob([JSON.stringify(study,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Second_Call_Michigan_Study.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Study exported with sources and unverified fields preserved.');
 });
 function pctTxt(x){return Math.round(100*x)+'%';}
+function showGame(source){lib.ids=null;lib.cutoff=false;lib.situation=false;lib.game=source;lib.kind='all';lib.limit=PAGE;$('cutoffFilter').checked=false;$('situationFilter').checked=false;$('gameFilter').value=source;for(const b of document.querySelectorAll('[data-filter]')){const on=b.dataset.filter==='all';b.classList.toggle('selected',on);b.setAttribute('aria-pressed',on);}renderCards();document.querySelector('.playbook-section').scrollIntoView({behavior:'smooth'});}
+function renderLatest(){
+const g=GAMES[LATEST];if(!g)return;
+const live=!g.final,ms=g.michiganScore,os=g.opponentScore;
+const res=live?'LIVE':ms>os?'W':ms<os?'L':'T';
+const date=new Date(g.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+const code=(g.opponentCode||g.opponent).slice(0,1);
+$('matchupChip').innerHTML=`<span class="team mich">M</span><span class="matchup-x">${g.michiganHome?'VS':'AT'}</span><span class="team opp">${safe(code)}</span><div><strong>Michigan ${g.michiganHome?'vs':'at'} ${safe(g.opponent)}</strong><small>${date.toUpperCase()} <span>·</span> ${live?'LIVE NOW':`${res} ${ms}-${os}`}</small></div>`;
+const snaps=PLAYS.filter(p=>p.source===LATEST&&!p.nullified&&!p.conversionAttempt&&['run','pass','sack'].includes(p.kind)&&p.down);
+const ok=snaps.filter(success),runs=snaps.filter(p=>p.kind==='run'),drops=snaps.filter(p=>p.kind!=='run');
+const rate=l=>l.length?pctTxt(l.filter(success).length/l.length):'—';
+const late=snaps.filter(p=>p.down>=3),lateConv=late.filter(p=>p.firstDown||p.touchdown);
+const fourth=snaps.filter(p=>p.down===4);
+const best=[...snaps].sort((a,b)=>(b.yards??0)-(a.yards??0))[0];
+const tos=snaps.filter(p=>p.interception||p.fumbleLost).length;
+const era=g.date>=STAFF_CHANGE_DATE?'Interim OC Jim Harding calling plays':'';
+$('latestGame').innerHTML=`<div class="latest-head"><div><div class="eyebrow">${live?'<b class="live-word">● LIVE</b>':'LATEST GAME · FINAL'}${era?' · '+era.toUpperCase():''}</div><h2 id="latestHeading">Michigan ${ms}, ${safe(g.opponent)} ${os}${live?'':` <span class="result ${res}">${res}</span>`}</h2><p>${date} · ${g.michiganHome?'at Michigan Stadium':'away'} · ${live?'updating every few minutes':'official box score, every snap reconciled'}</p></div><div class="latest-actions"><button class="primary-button" id="latestSnaps">See all ${g.offensiveSnaps} Michigan snaps ↓</button>${g.url&&!live?`<a class="text-button" href="${g.url}" target="_blank" rel="noopener">Official box score ↗</a>`:''}</div></div>
+<div class="library-summary latest-stats"><div><strong>${snaps.length}</strong><small>called plays (no penalties, kneels)</small></div><div><strong>${rate(snaps)}</strong><small>success · ${ok.length}/${snaps.length}</small></div><div><strong>${rate(runs)}</strong><small>runs · ${runs.length}</small></div><div><strong>${rate(drops)}</strong><small>dropbacks (incl. sacks) · ${drops.length}</small></div><div><strong>${lateConv.length}/${late.length}</strong><small>3rd &amp; 4th downs converted</small></div><div><strong>${tos}</strong><small>turnovers</small></div></div>
+<div class="latest-notes">${best?`<p><b>Biggest play:</b> ${safe(best.title)}, ${yardText(best.yards)} yds (${quarterText(best.quarter)} ${best.clock??''}, ${situationText(best)} at ${safe(best.spot)})</p>`:''}${fourth.length?`<p><b>4th downs:</b> ${fourth.map(p=>`${safe(p.shortTitle)} on 4th &amp; ${p.distance}, ${p.firstDown||p.touchdown?'converted':'stopped'}`).join('; ')}</p>`:'<p><b>4th downs:</b> no attempts</p>'}<p class="helper">Success: 40% of the needed yards on 1st down, 60% on 2nd, a conversion on 3rd or 4th.</p></div>`;
+$('latestSnaps').addEventListener('click',()=>showGame(LATEST));
+}
 function renderAnalysis(){
 const a=analyze(ana);
 const s=a.overall;
-$('aSummary').innerHTML=a.snaps?`<div><strong>${a.snaps}</strong><small>called plays in this situation</small></div><div><strong>${pctTxt(s.rate)}</strong><small>success · ${s.successes}/${s.n}</small></div><div><strong>${a.run.n?pctTxt(a.run.rate):'—'}</strong><small>runs · ${a.run.successes}/${a.run.n}</small></div><div><strong>${a.dropback.n?pctTxt(a.dropback.rate):'—'}</strong><small>dropbacks (incl. sacks) · ${a.dropback.successes}/${a.dropback.n}</small></div><p>${ana.cutoff?'Games before Oregon only (the study cutoff).':'<b class="neg">Includes games after the Oregon cutoff.</b>'} ${ERAS[ana.era]}.</p>`:'<p>No called plays match this situation.</p>';
+$('aSummary').innerHTML=a.snaps?`<div><strong>${a.snaps}</strong><small>called plays in this situation</small></div><div><strong>${pctTxt(s.rate)}</strong><small>success · ${s.successes}/${s.n}</small></div><div><strong>${a.run.n?pctTxt(a.run.rate):'—'}</strong><small>runs · ${a.run.successes}/${a.run.n}</small></div><div><strong>${a.dropback.n?pctTxt(a.dropback.rate):'—'}</strong><small>dropbacks (incl. sacks) · ${a.dropback.successes}/${a.dropback.n}</small></div><p>${ana.cutoff?'Games before Oregon only (the case-study cutoff).':'Whole season.'} ${ERAS[ana.era]}.</p>`:'<p>No called plays match this situation.</p>';
 $('aRows').innerHTML=a.rows.map((r,i)=>`<tr class="${r.small?'small':''}"><td><b>${i+1}.</b> ${safe(r.family)}${r.small?' <span class="tag">small sample</span>':''}</td><td>${r.n} <small>(${pctTxt(r.share)})</small></td><td><span class="rate">${pctTxt(r.rate)}</span> <small>${pctTxt(r.lo)}-${pctTxt(r.hi)}</small><span class="bar" aria-hidden="true"><i style="left:${100*r.lo}%;width:${100*(r.hi-r.lo)}%"></i><b style="left:${100*r.rate}%"></b></span></td><td>${r.avgYards.toFixed(1)}</td><td>${r.turnovers||''}</td><td><button class="text-button" data-fam="${i}">View ${r.n} ↓</button></td></tr>`).join('');
 for(const b of $('aRows').querySelectorAll('[data-fam]'))b.addEventListener('click',()=>{const r=a.rows[+b.dataset.fam];lib.ids=new Set(r.ids);lib.idsLabel=`${r.n} snaps: ${r.family}, ${DOWNS[ana.down]}, ${DISTANCES[ana.distance]}, ${ZONES[ana.zone]}`;lib.limit=PAGE;renderCards();document.querySelector('.playbook-section').scrollIntoView({behavior:'smooth'});});
 const eras=eraComparison(ana);
@@ -247,5 +272,6 @@ $('aCutoff').addEventListener('change',e=>{ana.cutoff=e.target.checked;renderAna
 $('aTarget').addEventListener('click',()=>setAnalysis({...TARGET_SITUATION}));
 $('clearIds').addEventListener('click',()=>{lib.ids=null;lib.limit=PAGE;renderCards();});
 setAnalysis({});
+renderLatest();
 renderGrid();render();
 })();

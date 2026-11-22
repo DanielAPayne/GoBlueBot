@@ -17,10 +17,12 @@
   <main>
     <section class="page-heading">
       <div><div class="eyebrow">THE PLAY DIDN’T WORK. WHAT IF THE CALL CHANGED?</div><h1>There’s another way <span>downfield.</span></h1></div>
-      <div class="matchup"><span class="team mich">M</span><span class="matchup-x">AT</span><span class="team ore">O</span><div><strong>Michigan at Oregon</strong><small>NOV 14, 2026 <span>·</span> TEST CASE 001</small></div></div>
+      <div class="matchup" id="matchupChip"></div>
     </section>
     <div class="live-banner" id="liveBanner" hidden><span class="live-pill"><i></i> LIVE</span><span id="liveText"></span><button id="liveBtn">See live snaps ↓</button></div>
+    <section class="latest-game" id="latestGame" aria-labelledby="latestHeading"></section>
     <div class="demo-notice"><span class="demo-pill">EVIDENCE FIRST</span><span>Every Michigan offensive snap from the official 2026 play-by-play, updated after each game. Full formations and assignments await film verification. Forecasts remain locked.</span><button id="noticeDetails">What this means ↗</button></div>
+    <div class="case-heading"><div class="eyebrow">CASE STUDY · MICHIGAN AT OREGON · NOV 14, 2026</div><h2>The 4th &amp; 3 that ended a drive. What else had worked?</h2></div>
     <section class="workspace" aria-label="Play comparison workspace">
       <aside class="study-panel panel">
         <div class="section-label">01 <span>THE OREGON TEST CASE</span></div>
@@ -60,14 +62,14 @@
       </aside>
     </section>
     <section class="staff-section" aria-labelledby="staffHeading"><div class="playbook-heading"><div><div class="eyebrow">HOW THIS STAFF CALLS IT · ALL 2026 OFFENSIVE PLAYS</div><h2 id="staffHeading">Pick a situation. See what Michigan calls, and what has worked.</h2></div></div>
-      <div class="library-controls"><label>Down<select id="aDown"></select></label><label>Distance<select id="aDistance"></select></label><label>Field position<select id="aZone"></select></label><label>Staff<select id="aEra"></select></label><label class="toggle"><input type="checkbox" id="aCutoff" checked> Before the Oregon game only</label><button class="secondary-button" id="aTarget">Oregon 4th &amp; 3 situation</button></div>
+      <div class="library-controls"><label>Down<select id="aDown"></select></label><label>Distance<select id="aDistance"></select></label><label>Field position<select id="aZone"></select></label><label>Staff<select id="aEra"></select></label><label class="toggle"><input type="checkbox" id="aCutoff"> Before the Oregon game only</label><button class="secondary-button" id="aTarget">Oregon 4th &amp; 3 situation</button></div>
       <div class="library-summary" id="aSummary" aria-live="polite"></div>
       <div class="table-wrap"><table class="calls-table"><thead><tr><th scope="col">Call (as recorded)</th><th scope="col">Called</th><th scope="col">Success <small>90% range</small></th><th scope="col">Avg yds</th><th scope="col">TO</th><th scope="col"><span class="sr-only">Snaps</span></th></tr></thead><tbody id="aRows"></tbody></table></div>
       <div class="era-compare" id="aEras"></div>
       <p class="helper analysis-note">Success: at least 40% of the needed yards on 1st down, 60% on 2nd, a first down on 3rd or 4th; a touchdown always counts, a turnover never does. Calls with 8 or more snaps are ranked first, by the low end of their 90% range, so a call needs a good rate and enough snaps to rank high; calls with fewer snaps follow, flagged as small samples. The record gives run direction and pass area, not the full play, and a sack cannot be tied to a pass area, so the dropback total includes sacks. Observed results against unrecorded defenses, not a forecast.</p>
     </section>
     <section class="playbook-section"><div class="playbook-heading"><div><div class="eyebrow">MICHIGAN’S OBSERVED SNAP LIBRARY · EVERY 2026 SNAP</div><h2>Real records. The whole season so far.</h2></div><div class="play-filters" role="group" aria-label="Filter plays"><button data-filter="all" class="selected" aria-pressed="true">All snaps</button><button data-filter="run" aria-pressed="false">Runs</button><button data-filter="pass" aria-pressed="false">Dropbacks</button></div></div>
-      <div class="library-controls"><label class="toggle"><input type="checkbox" id="cutoffFilter" checked> Before the Oregon game only</label><label class="toggle"><input type="checkbox" id="situationFilter" checked> Like the target · 3rd/4th &amp; 1-5</label><label>Game<select id="gameFilter"></select></label><label>Down<select id="downFilter"><option value="all">Any</option><option value="1">1st</option><option value="2">2nd</option><option value="3">3rd</option><option value="4">4th</option></select></label><label class="search">Search<input id="librarySearch" type="search" placeholder="Player or official text" autocomplete="off"></label></div>
+      <div class="library-controls"><label class="toggle"><input type="checkbox" id="cutoffFilter"> Before the Oregon game only</label><label class="toggle"><input type="checkbox" id="situationFilter"> Like the Oregon 4th &amp; 3 · 3rd/4th &amp; 1-5</label><label>Game<select id="gameFilter"></select></label><label>Down<select id="downFilter"><option value="all">Any</option><option value="1">1st</option><option value="2">2nd</option><option value="3">3rd</option><option value="4">4th</option></select></label><label class="search">Search<input id="librarySearch" type="search" placeholder="Player or official text" autocomplete="off"></label></div>
       <div class="library-filter-note" id="idFilterNote" hidden><span id="idFilterText"></span><button id="clearIds">Show all snaps</button></div>
       <div class="library-summary" id="librarySummary" aria-live="polite"></div>
       <div class="play-cards" id="playCards"></div><button class="secondary-button more-button" id="moreBtn" hidden>Show more</button></section>
