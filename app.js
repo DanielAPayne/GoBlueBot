@@ -236,14 +236,20 @@ const blob=new Blob([JSON.stringify(study,null,2)],{type:'application/json'}),ur
 });
 function pctTxt(x){return Math.round(100*x)+'%';}
 function showGame(source){lib.ids=null;lib.cutoff=false;lib.situation=false;lib.game=source;lib.kind='all';lib.limit=PAGE;$('cutoffFilter').checked=false;$('situationFilter').checked=false;$('gameFilter').value=source;for(const b of document.querySelectorAll('[data-filter]')){const on=b.dataset.filter==='all';b.classList.toggle('selected',on);b.setAttribute('aria-pressed',on);}renderCards();document.querySelector('.playbook-section').scrollIntoView({behavior:'smooth'});}
-function renderLatest(){
-const g=GAMES[LATEST];if(!g)return;
+let shownGame=null;
+function gameChips(){
+return `<div class="game-chips" role="group" aria-label="Choose a game">${[...GAME_ORDER].reverse().map(k=>{const x=GAMES[k],live=!x.final,r=live?'LIVE':x.michiganScore>x.opponentScore?'W':x.michiganScore<x.opponentScore?'L':'T';return `<button class="game-chip ${k===shownGame?'selected':''}" data-game="${k}" aria-pressed="${k===shownGame}"><small>${new Date(x.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</small><span>${x.michiganHome?'vs':'at'} ${safe(x.opponent)}</span><b class="r ${r}">${r} ${x.michiganScore}-${x.opponentScore}</b></button>`;}).join('')}</div>`;
+}
+function renderLatest(source=LATEST){
+shownGame=source;
+const g=GAMES[source];if(!g)return;
+const isLatest=source===LATEST;
 const live=!g.final,ms=g.michiganScore,os=g.opponentScore;
 const res=live?'LIVE':ms>os?'W':ms<os?'L':'T';
 const date=new Date(g.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 const code=(g.opponentCode||g.opponent).slice(0,1);
-$('matchupChip').innerHTML=`<span class="team mich">M</span><span class="matchup-x">${g.michiganHome?'VS':'AT'}</span><span class="team opp">${safe(code)}</span><div><strong>Michigan ${g.michiganHome?'vs':'at'} ${safe(g.opponent)}</strong><small>${date.toUpperCase()} <span>·</span> ${live?'LIVE NOW':`${res} ${ms}-${os}`}</small></div>`;
-const snaps=PLAYS.filter(p=>p.source===LATEST&&!p.nullified&&!p.conversionAttempt&&['run','pass','sack'].includes(p.kind)&&p.down);
+if(isLatest)$('matchupChip').innerHTML=`<span class="team mich">M</span><span class="matchup-x">${g.michiganHome?'VS':'AT'}</span><span class="team opp">${safe(code)}</span><div><strong>Michigan ${g.michiganHome?'vs':'at'} ${safe(g.opponent)}</strong><small>${date.toUpperCase()} <span>·</span> ${live?'LIVE NOW':`${res} ${ms}-${os}`}</small></div>`;
+const snaps=PLAYS.filter(p=>p.source===source&&!p.nullified&&!p.conversionAttempt&&['run','pass','sack'].includes(p.kind)&&p.down);
 const ok=snaps.filter(success),runs=snaps.filter(p=>p.kind==='run'),drops=snaps.filter(p=>p.kind!=='run');
 const rate=l=>l.length?pctTxt(l.filter(success).length/l.length):'—';
 const late=snaps.filter(p=>p.down>=3),lateConv=late.filter(p=>p.firstDown||p.touchdown);
@@ -251,10 +257,13 @@ const fourth=snaps.filter(p=>p.down===4);
 const best=[...snaps].sort((a,b)=>(b.yards??0)-(a.yards??0))[0];
 const tos=snaps.filter(p=>p.interception||p.fumbleLost).length;
 const era=g.date>=STAFF_CHANGE_DATE?'Interim OC Jim Harding calling plays':'';
-$('latestGame').innerHTML=`<div class="latest-head"><div><div class="eyebrow">${live?'<b class="live-word">● LIVE</b>':'LATEST GAME · FINAL'}${era?' · '+era.toUpperCase():''}</div><h2 id="latestHeading">Michigan ${ms}, ${safe(g.opponent)} ${os}${live?'':` <span class="result ${res}">${res}</span>`}</h2><p>${date} · ${g.michiganHome?'at Michigan Stadium':'away'} · ${live?'updating every few minutes':'official box score, every snap reconciled'}</p></div><div class="latest-actions"><button class="primary-button" id="latestSnaps">See all ${g.offensiveSnaps} Michigan snaps ↓</button>${g.url&&!live?`<a class="text-button" href="${g.url}" target="_blank" rel="noopener">Official box score ↗</a>`:''}</div></div>
+$('latestGame').innerHTML=`<div class="latest-head"><div><div class="eyebrow">${live?'<b class="live-word">● LIVE</b>':isLatest?'LATEST GAME · FINAL':'GAME · FINAL'}${era?' · '+era.toUpperCase():''}</div><h2 id="latestHeading">Michigan ${ms}, ${safe(g.opponent)} ${os}${live?'':` <span class="result ${res}">${res}</span>`}</h2><p>${date} · ${g.michiganHome?'at Michigan Stadium':'away'} · ${live?'updating every few minutes':'official box score, every snap reconciled'}</p></div><div class="latest-actions"><button class="primary-button" id="latestSnaps">See all ${g.offensiveSnaps} Michigan snaps ↓</button>${g.url&&!live?`<a class="text-button" href="${g.url}" target="_blank" rel="noopener">Official box score ↗</a>`:''}</div></div>
 <div class="library-summary latest-stats"><div><strong>${snaps.length}</strong><small>called plays (no penalties, kneels)</small></div><div><strong>${rate(snaps)}</strong><small>success · ${ok.length}/${snaps.length}</small></div><div><strong>${rate(runs)}</strong><small>runs · ${runs.length}</small></div><div><strong>${rate(drops)}</strong><small>dropbacks (incl. sacks) · ${drops.length}</small></div><div><strong>${lateConv.length}/${late.length}</strong><small>3rd &amp; 4th downs converted</small></div><div><strong>${tos}</strong><small>turnovers</small></div></div>
 <div class="latest-notes">${best?`<p><b>Biggest play:</b> ${safe(best.title)}, ${yardText(best.yards)} yds (${quarterText(best.quarter)} ${best.clock??''}, ${situationText(best)} at ${safe(best.spot)})</p>`:''}${fourth.length?`<p><b>4th downs:</b> ${fourth.map(p=>`${safe(p.shortTitle)} on 4th &amp; ${p.distance}, ${p.firstDown||p.touchdown?'converted':'stopped'}`).join('; ')}</p>`:'<p><b>4th downs:</b> no attempts</p>'}<p class="helper">Success: 40% of the needed yards on 1st down, 60% on 2nd, a conversion on 3rd or 4th.</p></div>`;
-$('latestSnaps').addEventListener('click',()=>showGame(LATEST));
+$('latestSnaps').addEventListener('click',()=>showGame(source));
+$('latestGame').insertAdjacentHTML('afterbegin',gameChips());
+for(const b of $('latestGame').querySelectorAll('[data-game]'))b.addEventListener('click',()=>renderLatest(b.dataset.game));
+const row=$('latestGame').querySelector('.game-chips'),sel=row.querySelector('.selected');const reveal=()=>{if(!sel)return;if(sel===row.lastElementChild){row.scrollLeft=row.scrollWidth;return;}const d=sel.getBoundingClientRect().right-row.getBoundingClientRect().right;if(d>0)row.scrollLeft+=d+2;};reveal();document.fonts?.ready.then(reveal);
 }
 function renderAnalysis(){
 const a=analyze(ana);
