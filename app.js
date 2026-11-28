@@ -258,6 +258,17 @@ el.innerHTML=plays.slice().reverse().map(p=>{const tm=teams[p.start?.team?.id]||
 if(st.completed){clearInterval(feedTimer);$('liveFeedHead').innerHTML+=' · FINAL. The official box score replaces this feed shortly.';}
 }catch(e){const h=$('liveFeedHead');if(h)h.innerHTML=`Live feed unavailable right now (${safe(e.message)}); retrying.`;}
 }
+let allPlays=null;
+async function loadAllPlays(){if(!allPlays)allPlays=fetch('./plays.json?v=7ab6125173').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();});return allPlays;}
+async function showAllPlays(source){
+const box=$('allPlays');if(!box)return;
+box.innerHTML='<p class="helper">Loading every play…</p>';
+try{
+const d=await loadAllPlays(),rows=d.games[source]||[],F=d.fields,g=GAMES[source];
+const opp=g.opponentCode||'OPP';
+box.innerHTML=`<div class="live-feed-head">${rows.length} plays, both teams, in game order · official play-by-play</div><ol class="live-feed-list all">${rows.map(r=>{const o=Object.fromEntries(F.map((k,i)=>[k,r[i]]));const mich=o.team==='MICH';const admin=o.type==='#';return `<li class="${admin?'admin':mich?'mich':'opp'}"><span class="who">${admin?'':safe(o.team==='MICH'?'MICH':o.team||opp)}</span><span class="when">${o.quarter>4?'OT':'Q'+o.quarter} ${safe(o.clock??'')}${o.down?` · ${ordinal(o.down)} &amp; ${o.distance}`:''}</span><span class="what">${safe(o.text)}</span></li>`;}).join('')}</ol>`;
+}catch(e){box.innerHTML=`<p class="helper">Could not load the plays (${safe(e.message)}).</p>`;}
+}
 function startFeed(eventId){if(feedTimer)return;pollFeed(eventId);feedTimer=setInterval(()=>pollFeed(eventId),10000);}
 function gameChips(){
 return `<div class="game-chips" role="group" aria-label="Choose a game">${[...GAME_ORDER].reverse().map(k=>{const x=GAMES[k],live=!x.final,r=live?'LIVE':x.michiganScore>x.opponentScore?'W':x.michiganScore<x.opponentScore?'L':'T';return `<button class="game-chip ${k===shownGame?'selected':''}" data-game="${k}" aria-pressed="${k===shownGame}"><small>${new Date(x.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</small><span>${x.michiganHome?'vs':'at'} ${safe(x.opponent)}</span><b class="r ${r}">${r} ${x.michiganScore}-${x.opponentScore}</b></button>`;}).join('')}</div>`;
@@ -283,6 +294,7 @@ $('latestGame').innerHTML=`<div class="latest-head"><div><div class="eyebrow">${
 <div class="library-summary latest-stats"><div><strong>${snaps.length}</strong><small>called plays (no penalties, kneels)</small></div><div><strong>${rate(snaps)}</strong><small>success · ${ok.length}/${snaps.length}</small></div><div><strong>${rate(runs)}</strong><small>runs · ${runs.length}</small></div><div><strong>${rate(drops)}</strong><small>dropbacks (incl. sacks) · ${drops.length}</small></div><div><strong>${lateConv.length}/${late.length}</strong><small>3rd &amp; 4th downs converted</small></div><div><strong>${tos}</strong><small>turnovers</small></div></div>
 <div class="latest-notes">${best?`<p><b>Biggest play:</b> ${safe(best.title)}, ${yardText(best.yards)} yds (${quarterText(best.quarter)} ${best.clock??''}, ${situationText(best)} at ${safe(best.spot)})</p>`:''}${fourth.length?`<p><b>4th downs:</b> ${fourth.map(p=>`${safe(p.shortTitle)} on 4th &amp; ${p.distance}, ${p.firstDown||p.touchdown?'converted':'stopped'}`).join('; ')}</p>`:'<p><b>4th downs:</b> no attempts</p>'}<p class="helper">Success: 40% of the needed yards on 1st down, 60% on 2nd, a conversion on 3rd or 4th.</p></div>`;
 if(live&&g.espnEventId){$('latestGame').insertAdjacentHTML('beforeend',`<div class="live-feed"><div class="live-feed-head" id="liveFeedHead">Connecting to the live feed…</div><ol class="live-feed-list" id="liveFeedList"></ol><p class="helper">Every play by both teams from ESPN's public game feed, updated every 10 seconds. Michigan plays are highlighted. Unofficial until the final box score.</p></div>`);feedSeen=0;startFeed(g.espnEventId);}
+if(!live){$('latestGame').insertAdjacentHTML('beforeend',`<div class="live-feed"><button class="secondary-button" id="allPlaysBtn">Every play, both teams ↓</button><div id="allPlays"></div></div>`);$('allPlaysBtn').addEventListener('click',()=>{$('allPlaysBtn').remove();showAllPlays(source);});}
 $('latestSnaps').addEventListener('click',()=>showGame(source));
 $('latestGame').insertAdjacentHTML('afterbegin',gameChips());
 for(const b of $('latestGame').querySelectorAll('[data-game]'))b.addEventListener('click',()=>renderLatest(b.dataset.game));
